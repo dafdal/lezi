@@ -18,9 +18,11 @@
         .me .bubble{background:#3498ff;}
         .input-area{display:flex;gap:10px;}
         #input{flex:1;padding:12px;border-radius:8px;border:none;font-size:16px;background:#223359;color:white;outline:none;}
-        #send{padding:12px 22px;background:#3498ff;border:none;color:white;border-radius:8px;cursor:pointer;}
+        #send{padding:12px 18px;background:#3498ff;border:none;color:white;border-radius:8px;cursor:pointer;}
         #send:hover{background:#2086ee;}
-        /*新增版权样式*/
+        /*语音按钮样式*/
+        #voiceBtn{padding:12px 14px;background:#445588;border:none;color:white;border-radius:8px;cursor:pointer;}
+        #voiceBtn.listening{background:#e74c3c;}
         .copyright{text-align:center;margin-top:16px;color:#94a3c2;font-size:14px;}
     </style>
 </head>
@@ -31,17 +33,123 @@
         <div class="msg ai"><div class="bubble">你好！我是乐子，很高兴和你聊天，随便说点什么吧~</div></div>
     </div>
     <div class="input-area">
-        <input id="input" placeholder="在这里输入消息，回车发送">
+        <input id="input" placeholder="在这里输入消息，回车发送，可以输入算式：(10+5)*2">
+        <button id="voiceBtn">🎤</button>
         <button id="send">发送</button>
     </div>
-    <!--版权信息放在最底部-->
     <div class="copyright">© 2026 由大风大浪集团自主研发的第一个AI</div>
 </div>
 <script>
 const chatbox = document.getElementById("chatbox");
 const inputDom = document.getElementById("input");
 const sendBtn = document.getElementById("send");
-// 关键词库：匹配到关键词就从对应数组随机选一句
+const voiceBtn = document.getElementById("voiceBtn");
+
+//语音识别配置
+let recognition = null;
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SpeechRecognition();
+    recognition.lang = "zh-CN";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onresult = function(event) {
+        const text = event.results[0][0].transcript;
+        inputDom.value = text;
+        voiceBtn.classList.remove("listening");
+    };
+    recognition.onerror = function(){
+        voiceBtn.classList.remove("listening");
+    };
+    recognition.onend = function(){
+        voiceBtn.classList.remove("listening");
+    };
+}
+
+//麦克风按钮点击事件
+voiceBtn.onclick = function(){
+    if(!recognition){
+        alert("你的浏览器不支持语音输入");
+        return;
+    }
+    if(voiceBtn.classList.contains("listening")){
+        recognition.stop();
+        voiceBtn.classList.remove("listening");
+    }else{
+        voiceBtn.classList.add("listening");
+        recognition.start();
+    }
+};
+
+//打字机输出函数
+async function typeWrite(element, text, speed=35){
+    element.innerHTML = "";
+    for(let i=0;i<text.length;i++){
+        element.innerHTML += text.charAt(i);
+        chatbox.scrollTop = chatbox.scrollHeight;
+        await new Promise(resolve=>setTimeout(resolve,speed));
+    }
+}
+
+// 计算引擎：支持括号、四则运算、小数
+function calcExpression(expr){
+    expr = expr.replace(/\s+/g,"");
+    if(!/^[0-9+\-*/().]+$/.test(expr)) return null;
+
+    function calcSimple(str){
+        let mulDiv = str.split(/([*/])/);
+        let val = parseFloat(mulDiv[0]);
+        for(let i=1;i<mulDiv.length;i+=2){
+            let op = mulDiv[i];
+            let num = parseFloat(mulDiv[i+1]);
+            if(op === "*") val *= num;
+            if(op === "/"){
+                if(Math.abs(num)<1e-12) return NaN;
+                val /= num;
+            }
+        }
+        return val;
+    }
+
+    while(expr.includes("(")){
+        let left = expr.lastIndexOf("(");
+        let right = expr.indexOf(")",left);
+        if(right === -1) return null;
+        let sub = expr.slice(left+1,right);
+        let v = calcSimple(sub);
+        if(isNaN(v)) return null;
+        expr = expr.slice(0,left)+v+expr.slice(right+1);
+    }
+
+    let parts = expr.split(/([+-])/);
+    let res = parseFloat(parts[0]);
+    for(let i=1;i<parts.length;i+=2){
+        let op = parts[i];
+        let num = parseFloat(parts[i+1]);
+        if(op === "+") res += num;
+        if(op === "-") res -= num;
+    }
+    if(!isFinite(res)) return null;
+    res = Math.round(res*100000)/100000;
+    return res;
+}
+
+function tryCalcMath(text){
+    //提取算式
+    const mathPattern = /[\d+\-*/().]{3,}/g;
+    const matches = text.match(mathPattern);
+    if(!matches) return null;
+    for(let exp of matches){
+        let result = calcExpression(exp);
+        if(result!==null){
+            return `${exp} = ${result}`;
+        }
+    }
+    return null;
+}
+
+// 关键词库
 const keywordReplies = [
     {
         keys:["你好","嗨","哈喽","hi","hello"],
@@ -140,7 +248,8 @@ const keywordReplies = [
         ]
     }
 ];
-//兜底备用回复（没匹配到关键词就从这里随机选，一共88条）
+
+//兜底备用回复
 const fallbackReplies = [
 "哈哈，原来是这样，我听懂啦！",
 "哇，这个话题挺有意思的，再多说说呗。",
@@ -231,38 +340,46 @@ const fallbackReplies = [
 "多发现生活里面的小美好。",
 "平凡日子也有很多乐趣。"
 ];
-//获取AI回复的核心逻辑：先匹配关键词，匹配失败用兜底随机
+
+//获取AI回复
 function getAiReply(userInput){
+    const mathAns = tryCalcMath(userInput);
+    if(mathAns !== null){
+        return mathAns;
+    }
     const lowerText = userInput.toLowerCase();
     for(let group of keywordReplies){
         for(let kw of group.keys){
             if(lowerText.includes(kw)){
-                //命中关键词，从该组回复随机选一条
                 return group.replies[Math.floor(Math.random()*group.replies.length)];
             }
         }
     }
-    //没有匹配到任何关键词，走兜底库随机
     return fallbackReplies[Math.floor(Math.random()*fallbackReplies.length)];
 }
+
 function sendMsg(){
     let text = inputDom.value.trim();
     if(!text) return;
-    //渲染用户消息
     chatbox.innerHTML += `<div class="msg me"><div class="bubble">${escapeHtml(text)}</div></div>`;
     inputDom.value = "";
-    //模拟思考延迟
-    setTimeout(()=>{
-        let aiAnswer = getAiReply(text);
-        chatbox.innerHTML += `<div class="msg ai"><div class="bubble">${escapeHtml(aiAnswer)}</div></div>`;
-        chatbox.scrollTop = chatbox.scrollHeight;
-    },500);
     chatbox.scrollTop = chatbox.scrollHeight;
+
+    setTimeout(async ()=>{
+        let aiAnswer = getAiReply(text);
+        const aiMsgDiv = document.createElement("div");
+        aiMsgDiv.className = "msg ai";
+        aiMsgDiv.innerHTML = `<div class="bubble"></div>`;
+        chatbox.appendChild(aiMsgDiv);
+        const bubbleDom = aiMsgDiv.querySelector(".bubble");
+        await typeWrite(bubbleDom, escapeHtml(aiAnswer),35);
+    },400);
 }
-//防止XSS转义特殊符号
+
 function escapeHtml(str) {
     return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
+
 sendBtn.onclick = sendMsg;
 inputDom.onkeydown = function(e){
     if(e.key === "Enter") sendMsg();
