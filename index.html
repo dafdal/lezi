@@ -1,389 +1,214 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI乐子</title>
+    <script type="module">
+        import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
+        window.pipeline = pipeline;
+    </script>
     <style>
-        *{margin:0;padding:0;box-sizing:border-box;font-family:system-ui;}
-        body{background:#16213e;color:#fff;padding:20px;}
-        .container{max-width:850px;margin:0 auto;}
-        h1{text-align:center;color:#63aaff;margin-bottom:20px;}
-        .chat-box{background:#1a2b4d;border-radius:12px;padding:16px;min-height:480px;max-height:580px;overflow-y:auto;margin-bottom:15px;}
-        .msg{margin:10px 0;}
-        .msg.ai{display:flex;justify-content:flex-start;}
-        .msg.me{display:flex;justify-content:flex-end;}
-        .bubble{max-width:72%;padding:12px 16px;border-radius:10px;line-height:1.5;}
-        .ai .bubble{background:#283b66;}
-        .me .bubble{background:#3498ff;}
-        .input-area{display:flex;gap:10px;}
-        #input{flex:1;padding:12px;border-radius:8px;border:none;font-size:16px;background:#223359;color:white;outline:none;}
-        #send{padding:12px 18px;background:#3498ff;border:none;color:white;border-radius:8px;cursor:pointer;}
-        #send:hover{background:#2086ee;}
-        /*语音按钮样式*/
-        #voiceBtn{padding:12px 14px;background:#445588;border:none;color:white;border-radius:8px;cursor:pointer;}
-        #voiceBtn.listening{background:#e74c3c;}
-        .copyright{text-align:center;margin-top:16px;color:#94a3c2;font-size:14px;}
+*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui;}
+body{background:#16213e;color:#fff;padding:20px;}
+.container{max-width:850px;margin:0 auto;}
+h1{text-align:center;color:#63aaff;margin-bottom:20px;}
+.chat-box{background:#1a2b4d;border-radius:12px;padding:16px;min-height:480px;max-height:580px;overflow-y:auto;margin-bottom:15px;}
+.msg{margin:10px 0;display:flex;}
+.msg.ai{justify-content:flex-start;}
+.msg.me{justify-content:flex-end;}
+.bubble{max-width:72%;padding:12px 16px;border-radius:14px;line-height:1.5;word-wrap:break-word;}
+.ai .bubble{background:#283b64;}
+.me .bubble{background:#2068d0;}
+.input-area{display:flex;gap:10px;}
+#input{flex:1;padding:12px 14px;border-radius:8px;border:none;background:#223359;color:#fff;outline:none;font-size:16px;}
+.btn{padding:12px 18px;border:none;border-radius:8px;background:#3478e8;color:#fff;cursor:pointer;font-size:15px;}
+.btn:hover{background:#2962c2;}
+.btn.listening{background:#c82423;}
+.footer{text-align:center;margin-top:16px;color:#94a3c7;font-size:13px;}
+.load-tip{color:#ffdd70;text-align:center;margin:8px 0;}
     </style>
 </head>
 <body>
 <div class="container">
     <h1>AI 乐子</h1>
-    <div class="chat-box" id="chatbox">
-        <div class="msg ai"><div class="bubble">你好！我是乐子，很高兴和你聊天，随便说点什么吧~</div></div>
-    </div>
+    <div class="chat-box" id="chatbox"></div>
+    <div class="load-tip" id="loadTip">模型等待加载中，请稍候（首次需要下载数百MB）</div>
     <div class="input-area">
-        <input id="input" placeholder="在这里输入消息，回车发送，可以输入算式：(10+5)*2">
-        <button id="voiceBtn">🎤</button>
-        <button id="send">发送</button>
+        <input id="input" placeholder="在这里输入消息，回车发送，可以输入算式计算">
+        <button class="btn" id="micBtn">🎤</button>
+        <button class="btn" id="sendBtn">发送</button>
     </div>
-    <div class="copyright">© 2026 由大风大浪集团自主研发的第一个AI</div>
+    <div class="footer">©2026 大风大浪集团版权所有</div>
 </div>
+
 <script>
-const chatbox = document.getElementById("chatbox");
-const inputDom = document.getElementById("input");
-const sendBtn = document.getElementById("send");
-const voiceBtn = document.getElementById("voiceBtn");
+const chatbox = document.getElementById('chatbox');
+const inputDom = document.getElementById('input');
+const sendBtn = document.getElementById('sendBtn');
+const micBtn = document.getElementById('micBtn');
+const loadTip = document.getElementById('loadTip');
 
-//语音识别配置
+let generator = null;
+let modelReady = false;
 let recognition = null;
-if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    recognition = new SpeechRecognition();
-    recognition.lang = "zh-CN";
-    recognition.continuous = false;
-    recognition.interimResults = false;
+let isListen = false;
 
-    recognition.onresult = function(event) {
-        const text = event.results[0][0].transcript;
-        inputDom.value = text;
-        voiceBtn.classList.remove("listening");
-    };
-    recognition.onerror = function(){
-        voiceBtn.classList.remove("listening");
-    };
-    recognition.onend = function(){
-        voiceBtn.classList.remove("listening");
-    };
-}
+// ========== 你的关键词知识库（节选，你可以把之前1000条完整替换这里的[]内部） ==========
+const keywordReplies = [
+    { keys:["你好","嗨","哈喽","hi","hello","早上好","下午好","晚上好"], replies:["你好呀！很高兴和你聊天~","嗨！今天有什么想聊的？"]},
+    { keys:["傻逼","sb","傻b","脏话","骂人","滚","讨厌你","去死"], replies:["请文明聊天，不要说不友好的话语。","我们好好沟通，不要使用不好的词语。"]},
+    { keys:["你是谁","你叫什么"], replies:["我叫乐子，是大风大浪集团开发的网页聊天机器人。"]}
+];
 
-//麦克风按钮点击事件
-voiceBtn.onclick = function(){
-    if(!recognition){
-        alert("你的浏览器不支持语音输入");
-        return;
-    }
-    if(voiceBtn.classList.contains("listening")){
-        recognition.stop();
-        voiceBtn.classList.remove("listening");
-    }else{
-        voiceBtn.classList.add("listening");
-        recognition.start();
-    }
-};
+// 兜底回复
+const fallbackReplies = [
+    "哈哈，原来是这样，继续说说吧。",
+    "这个话题很有意思，再多讲讲。",
+    "我在听，你继续说。"
+];
 
-//打字机输出函数
-async function typeWrite(element, text, speed=35){
-    element.innerHTML = "";
-    for(let i=0;i<text.length;i++){
-        element.innerHTML += text.charAt(i);
+// 打字机效果
+async function typeWrite(el, text, speed=35){
+    el.innerHTML = "";
+    for(let ch of text){
+        el.innerHTML += ch;
         chatbox.scrollTop = chatbox.scrollHeight;
-        await new Promise(resolve=>setTimeout(resolve,speed));
+        await new Promise(r=>setTimeout(r, speed));
     }
 }
 
-// 计算引擎：支持括号、四则运算、小数
-function calcExpression(expr){
-    expr = expr.replace(/\s+/g,"");
-    if(!/^[0-9+\-*/().]+$/.test(expr)) return null;
+// 添加消息气泡
+function addMsg(text, isMe=false){
+    const wrap = document.createElement('div');
+    wrap.className = 'msg ' + (isMe?'me':'ai');
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    wrap.appendChild(bubble);
+    chatbox.appendChild(wrap);
+    chatbox.scrollTop = chatbox.scrollHeight;
+    return bubble;
+}
 
-    function calcSimple(str){
-        let mulDiv = str.split(/([*/])/);
-        let val = parseFloat(mulDiv[0]);
-        for(let i=1;i<mulDiv.length;i+=2){
-            let op = mulDiv[i];
-            let num = parseFloat(mulDiv[i+1]);
-            if(op === "*") val *= num;
-            if(op === "/"){
-                if(Math.abs(num)<1e-12) return NaN;
-                val /= num;
+// 关键词匹配
+function matchKeyword(text){
+    const low = text.toLowerCase();
+    for(let item of keywordReplies){
+        for(let kw of item.keys){
+            if(low.includes(kw.toLowerCase())){
+                const idx = Math.floor(Math.random()*item.replies.length);
+                return item.replies[idx];
             }
-        }
-        return val;
-    }
-
-    while(expr.includes("(")){
-        let left = expr.lastIndexOf("(");
-        let right = expr.indexOf(")",left);
-        if(right === -1) return null;
-        let sub = expr.slice(left+1,right);
-        let v = calcSimple(sub);
-        if(isNaN(v)) return null;
-        expr = expr.slice(0,left)+v+expr.slice(right+1);
-    }
-
-    let parts = expr.split(/([+-])/);
-    let res = parseFloat(parts[0]);
-    for(let i=1;i<parts.length;i+=2){
-        let op = parts[i];
-        let num = parseFloat(parts[i+1]);
-        if(op === "+") res += num;
-        if(op === "-") res -= num;
-    }
-    if(!isFinite(res)) return null;
-    res = Math.round(res*100000)/100000;
-    return res;
-}
-
-function tryCalcMath(text){
-    //提取算式
-    const mathPattern = /[\d+\-*/().]{3,}/g;
-    const matches = text.match(mathPattern);
-    if(!matches) return null;
-    for(let exp of matches){
-        let result = calcExpression(exp);
-        if(result!==null){
-            return `${exp} = ${result}`;
         }
     }
     return null;
 }
 
-// 关键词库
-const keywordReplies = [
-    {
-        keys:["你好","嗨","哈喽","hi","hello"],
-        replies:[
-            "你好呀！很高兴和你聊天~",
-            "嗨！今天有什么想聊的？",
-            "哈喽哈喽，有什么事跟我说吧。"
-        ]
-    },
-    {
-        keys:["开心","高兴","快乐","爽"],
-        replies:[
-            "太棒啦！看到你开心我也很高兴。",
-            "真好，保持这份快乐的心情！",
-            "喜事多多，继续开开心心！"
-        ]
-    },
-    {
-        keys:["难过","伤心","哭","不开心","烦","郁闷"],
-        replies:[
-            "别难过啦，把烦心事跟我说说。",
-            "心里难受就说出来，会好受很多。",
-            "不要闷闷不乐，一切都会变好的。"
-        ]
-    },
-    {
-        keys:["游戏","玩游戏","打游戏"],
-        replies:[
-            "打游戏确实很解压，但是不要玩太久哦。",
-            "游戏好玩，记得劳逸结合。",
-            "你平时喜欢玩什么游戏？"
-        ]
-    },
-    {
-        keys:["吃饭","饿","美食","吃什么"],
-        replies:[
-            "要好好吃饭，身体最重要。",
-            "好吃的东西真的可以治愈心情！",
-            "肚子饿就赶紧找点东西吃吧。"
-        ]
-    },
-    {
-        keys:["睡觉","困","熬夜","晚安"],
-        replies:[
-            "早点休息，尽量不要熬夜。",
-            "困了就去睡吧，晚安，祝你好梦。",
-            "熬夜伤身体，要保证充足睡眠。"
-        ]
-    },
-    {
-        keys:["学习","作业","读书","做题"],
-        replies:[
-            "学习加油，遇到难题不要慌。",
-            "写作业累了可以短暂休息一会。",
-            "多思考多提问，会进步很快。"
-        ]
-    },
-    {
-        keys:["你是谁","你叫什么","你的名字"],
-        replies:[
-            "我叫乐子，是一个本地聊天机器人。",
-            "我是乐子，专门陪你聊天。",
-            "我是你的网页聊天小伙伴乐子。"
-        ]
-    },
-    {
-        keys:["谢谢","多谢","感谢"],
-        replies:[
-            "不用客气！",
-            "小事而已，不用谢哈。",
-            "能帮到你我就很开心。"
-        ]
-    },
-    {
-        keys:["再见","拜拜","走了"],
-        replies:[
-            "拜拜，有空再来聊天！",
-            "再见，祝你一切顺利！",
-            "下次再来找我玩，拜拜~"
-        ]
-    },
-    {
-        keys:["为什么","为啥","怎么回事","为什么呢"],
-        replies:[
-            "这个问题有点意思，可以再多讲讲情况。",
-            "原因有很多种，你是遇到什么情况了？",
-            "让我想想，你可以把事情完整说一说。"
-        ]
-    },
-    {
-        keys:["厉害","太强","牛","真棒"],
-        replies:[
-            "哈哈，过奖啦！",
-            "谢谢你的夸奖！",
-            "能得到你的认可很开心。"
-        ]
-    }
-];
-
-//兜底备用回复
-const fallbackReplies = [
-"哈哈，原来是这样，我听懂啦！",
-"哇，这个话题挺有意思的，再多说说呗。",
-"嗯嗯，我在认真听你讲。",
-"真的吗？太神奇了！",
-"可以跟我详细讲讲发生什么了吗？",
-"原来是这么一回事，涨知识了。",
-"我理解你的想法。",
-"这个我也不太懂，我们聊点别的吧。",
-"哈哈哈哈，太搞笑了！",
-"听起来还挺不错的。",
-"啊？怎么会变成这样。",
-"那接下来你打算怎么做呢？",
-"有道理，说得没错。",
-"我觉得你的想法很棒。",
-"喔喔，原来是这个样子。",
-"辛苦了，希望一切顺顺利利。",
-"不要难过，一切都会变好的。",
-"加油，相信你可以做到！",
-"这个问题有点难，让我想一想。",
-"你今天过得怎么样？",
-"最近有没有遇到好玩的事情？",
-"你平时喜欢干什么呀？",
-"我没事干，就陪你聊天。",
-"天气最近变化很大，注意身体。",
-"要记得好好吃饭，别饿肚子。",
-"早点休息，不要熬夜哦。",
-"熬夜对身体不太好，尽量早点睡。",
-"哈哈，被你逗乐了。",
-"这也太厉害了吧！",
-"哇塞，太强了，佩服佩服。",
-"原来是这样，我之前都不知道。",
-"那你对此是什么看法呢？",
-"我保持中立，两边都有道理。",
-"事情总是有两面性的。",
-"放平心态，不用太焦虑。",
-"遇到烦心事可以多和我吐槽。",
-"说出来心里会舒服很多。",
-"不要给自己太大压力。",
-"慢慢来，不用着急。",
-"一切都会慢慢好起来的。",
-"你说的很对，我完全同意。",
-"这个角度很新颖，我没想到。",
-"还有别的可以告诉我吗？",
-"我继续听你往下说。",
-"嗯哼，然后呢？",
-"后续发生什么事啦？",
-"天呐，居然会发生这种事。",
-"有点出乎意料，没想到。",
-"我有点好奇，为什么会这样？",
-"是什么原因造成的呢？",
-"如果换做是我，我也会这样想。",
-"换个角度想想，也许会不一样。",
-"生活总会有各种各样的小插曲。",
-"开心最重要啦。",
-"快乐才是头等大事。",
-"有空可以多出去走走放松一下。",
-"多出门看看风景心情会变好。",
-"打游戏确实是很好的消遣。",
-"游戏适当玩，不要沉迷。",
-"看书可以学到很多新知识。",
-"运动对身体很有益处。",
-"跑步打球都可以锻炼身体。",
-"吃好吃的东西真的很幸福。",
-"美食可以治愈坏心情。",
-"放假的时候最舒服了。",
-"上学上班有时候确实很累。",
-"坚持下去就会看到收获。",
-"付出总会有回报的。",
-"不要轻易放弃自己的目标。",
-"遇到困难想办法去克服它。",
-"失败也没有关系，可以重新再来。",
-"犯错很正常，吸取教训就好。",
-"每个人都会有失误的时候。",
-"不用过分纠结过去的事情。",
-"多展望未来，期待以后。",
-"未来值得我们去期待。",
-"计划好自己要做的事会更高效。",
-"做事可以分清楚主次先后。",
-"偶尔摸鱼放松也没有问题。",
-"劳逸结合效率才更高。",
-"朋友之间互相理解很重要。",
-"人与人相处需要互相包容。",
-"遇到矛盾好好沟通会更好。",
-"不要随便发脾气，冷静一下。",
-"生气会伤害自己身体。",
-"遇到不开心就把情绪释放出来。",
-"多发现生活里面的小美好。",
-"平凡日子也有很多乐趣。"
-];
-
-//获取AI回复
-function getAiReply(userInput){
-    const mathAns = tryCalcMath(userInput);
-    if(mathAns !== null){
-        return mathAns;
-    }
-    const lowerText = userInput.toLowerCase();
-    for(let group of keywordReplies){
-        for(let kw of group.keys){
-            if(lowerText.includes(kw)){
-                return group.replies[Math.floor(Math.random()*group.replies.length)];
-            }
-        }
-    }
-    return fallbackReplies[Math.floor(Math.random()*fallbackReplies.length)];
+// 简单数学算式匹配
+function calcMath(text){
+    const reg = /[-+*/()0-9. ]+/;
+    const m = text.match(reg);
+    if(!m) return null;
+    const expr = m[0].trim();
+    if(!/^[0-9+\-*/(). ]+$/.test(expr)) return null;
+    try{
+        const res = Function('"use strict";return ('+expr+')')();
+        if(!isFinite(res)) return null;
+        return `算式 ${expr} = ${res}`;
+    }catch(e){return null;}
 }
 
-function sendMsg(){
-    let text = inputDom.value.trim();
-    if(!text) return;
-    chatbox.innerHTML += `<div class="msg me"><div class="bubble">${escapeHtml(text)}</div></div>`;
+// 本地大模型生成回答
+async function localLLM(prompt){
+    if(!modelReady) return "模型还没有加载完成，请等待。";
+    const output = await generator(prompt, {
+        max_new_tokens:220,
+        temperature:0.7
+    });
+    return output[0].generated_text;
+}
+
+// 发送消息主逻辑
+async function sendMessage(){
+    const txt = inputDom.value.trim();
+    if(!txt) return;
     inputDom.value = "";
-    chatbox.scrollTop = chatbox.scrollHeight;
+    addMsg(txt, true);
 
-    setTimeout(async ()=>{
-        let aiAnswer = getAiReply(text);
-        const aiMsgDiv = document.createElement("div");
-        aiMsgDiv.className = "msg ai";
-        aiMsgDiv.innerHTML = `<div class="bubble"></div>`;
-        chatbox.appendChild(aiMsgDiv);
-        const bubbleDom = aiMsgDiv.querySelector(".bubble");
-        await typeWrite(bubbleDom, escapeHtml(aiAnswer),35);
-    },400);
+    //1.数学计算优先
+    const mathRes = calcMath(txt);
+    if(mathRes){
+        const bubble = addMsg("", false);
+        await typeWrite(bubble, mathRes);
+        return;
+    }
+    //2.关键词匹配
+    const kwAns = matchKeyword(txt);
+    if(kwAns){
+        const bubble = addMsg("", false);
+        await typeWrite(bubble, kwAns);
+        return;
+    }
+    //3.调用本地WebGPU大模型
+    const bubble = addMsg("", false);
+    let ans;
+    try{
+        ans = await localLLM(txt);
+    }catch(err){
+        console.error(err);
+        ans = fallbackReplies[Math.floor(Math.random()*fallbackReplies.length)];
+    }
+    await typeWrite(bubble, ans);
 }
 
-function escapeHtml(str) {
-    return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+// 加载transformers.js本地模型
+async function loadModel(){
+    try{
+        loadTip.innerText = "正在加载本地AI模型，文件较大，请耐心等待...";
+        const pipeline = window.pipeline;
+        generator = await pipeline('text-generation', 'Xenova/distilgpt2');
+        modelReady = true;
+        loadTip.innerText = "✅本地小模型加载完毕，可以开始对话";
+    }catch(err){
+        loadTip.innerText = "❌模型加载失败，你的浏览器不支持WebGPU，只能使用关键词模式";
+        console.error(err);
+    }
 }
 
-sendBtn.onclick = sendMsg;
-inputDom.onkeydown = function(e){
-    if(e.key === "Enter") sendMsg();
+//语音识别
+if(window.webkitSpeechRecognition){
+    recognition = new window.webkitSpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'zh‑CN';
+    recognition.onresult = e=>{
+        const text = e.results[0][0].transcript;
+        inputDom.value = text;
+    };
+    recognition.onend = ()=>{
+        isListen = false;
+        micBtn.classList.remove('listening');
+    }
 }
+micBtn.onclick = ()=>{
+    if(!recognition){alert("你的浏览器不支持语音识别");return;}
+    if(isListen){
+        recognition.stop();
+    }else{
+        isListen=true;
+        micBtn.classList.add('listening');
+        recognition.start();
+    }
+}
+
+sendBtn.onclick = sendMessage;
+inputDom.onkeydown = e=>{
+    if(e.key==='Enter') sendMessage();
+}
+
+//启动加载模型
+loadModel();
 </script>
 </body>
 </html>
+
