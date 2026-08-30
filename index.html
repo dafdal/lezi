@@ -1,39 +1,40 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI乐子</title>
-    <script type="module">
-        import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
-        window.pipeline = pipeline;
-    </script>
+    <!-- 仅浏览器标签页左上角favicon：白底黑字“乐” -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32'><rect width='32' height='32' fill='white'/><text x='16' y='24' font-size='22' text-anchor='middle' fill='black'>乐</text></svg>">
     <style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui;}
-body{background:#16213e;color:#fff;padding:20px;}
-.container{max-width:850px;margin:0 auto;}
-h1{text-align:center;color:#63aaff;margin-bottom:20px;}
-.chat-box{background:#1a2b4d;border-radius:12px;padding:16px;min-height:480px;max-height:580px;overflow-y:auto;margin-bottom:15px;}
-.msg{margin:10px 0;display:flex;}
-.msg.ai{justify-content:flex-start;}
-.msg.me{justify-content:flex-end;}
-.bubble{max-width:72%;padding:12px 16px;border-radius:14px;line-height:1.5;word-wrap:break-word;}
-.ai .bubble{background:#283b64;}
-.me .bubble{background:#2068d0;}
-.input-area{display:flex;gap:10px;}
-#input{flex:1;padding:12px 14px;border-radius:8px;border:none;background:#223359;color:#fff;outline:none;font-size:16px;}
-.btn{padding:12px 18px;border:none;border-radius:8px;background:#3478e8;color:#fff;cursor:pointer;font-size:15px;}
-.btn:hover{background:#2962c2;}
-.btn.listening{background:#c82423;}
-.footer{text-align:center;margin-top:16px;color:#94a3c7;font-size:13px;}
-.load-tip{color:#ffdd70;text-align:center;margin:8px 0;}
+        *{margin:0;padding:0;box-sizing:border-box;font-family:system-ui;}
+        body{background:#16213e;color:#fff;padding:20px;}
+        .container{max-width:850px;margin:0 auto;}
+        h1{
+            text-align:center;
+            color:#63aaff;
+            margin-bottom:20px;
+            font-size:24px;
+        }
+        .chat-box{background:#1a2b4d;border-radius:12px;padding:16px;min-height:480px;max-height:580px;overflow-y:auto;margin-bottom:15px;}
+        .msg{margin:10px 0;display:flex;}
+        .msg.ai{justify-content:flex-start;}
+        .msg.me{justify-content:flex-end;}
+        .bubble{max-width:72%;padding:12px 16px;border-radius:14px;line-height:1.5;word-wrap:break-word;}
+        .ai .bubble{background:#283b64;}
+        .me .bubble{background:#2068d0;}
+        .input-area{display:flex;gap:10px;}
+        #input{flex:1;padding:12px 14px;border-radius:8px;border:none;background:#223359;color:#fff;outline:none;font-size:16px;}
+        .btn{padding:12px 18px;border:none;border-radius:8px;background:#3478e8;color:#fff;cursor:pointer;font-size:15px;}
+        .btn:hover{background:#2962c2;}
+        .btn.listening{background:#c82423;}
+        .footer{text-align:center;margin-top:16px;color:#94a3c7;font-size:13px;}
     </style>
 </head>
 <body>
 <div class="container">
     <h1>AI 乐子</h1>
     <div class="chat-box" id="chatbox"></div>
-    <div class="load-tip" id="loadTip">模型等待加载中，请稍候（首次需要下载数百MB）</div>
     <div class="input-area">
         <input id="input" placeholder="在这里输入消息，回车发送，可以输入算式计算">
         <button class="btn" id="micBtn">🎤</button>
@@ -41,20 +42,15 @@ h1{text-align:center;color:#63aaff;margin-bottom:20px;}
     </div>
     <div class="footer">©2026 大风大浪集团版权所有</div>
 </div>
-
 <script>
 const chatbox = document.getElementById('chatbox');
 const inputDom = document.getElementById('input');
 const sendBtn = document.getElementById('sendBtn');
 const micBtn = document.getElementById('micBtn');
-const loadTip = document.getElementById('loadTip');
-
-let generator = null;
-let modelReady = false;
 let recognition = null;
 let isListen = false;
 
-// ========== 你的关键词知识库（节选，你可以把之前1000条完整替换这里的[]内部） ==========
+// ========== 关键词知识库 ==========
 const keywordReplies = [
     { keys:["你好","嗨","哈喽","hi","hello","早上好","下午好","晚上好"], replies:["你好呀！很高兴和你聊天~","嗨！今天有什么想聊的？"]},
     { keys:["傻逼","sb","傻b","脏话","骂人","滚","讨厌你","去死"], replies:["请文明聊天，不要说不友好的话语。","我们好好沟通，不要使用不好的词语。"]},
@@ -84,6 +80,7 @@ function addMsg(text, isMe=false){
     wrap.className = 'msg ' + (isMe?'me':'ai');
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
+    bubble.textContent = text;
     wrap.appendChild(bubble);
     chatbox.appendChild(wrap);
     chatbox.scrollTop = chatbox.scrollHeight;
@@ -118,16 +115,6 @@ function calcMath(text){
     }catch(e){return null;}
 }
 
-// 本地大模型生成回答
-async function localLLM(prompt){
-    if(!modelReady) return "模型还没有加载完成，请等待。";
-    const output = await generator(prompt, {
-        max_new_tokens:220,
-        temperature:0.7
-    });
-    return output[0].generated_text;
-}
-
 // 发送消息主逻辑
 async function sendMessage(){
     const txt = inputDom.value.trim();
@@ -142,6 +129,7 @@ async function sendMessage(){
         await typeWrite(bubble, mathRes);
         return;
     }
+
     //2.关键词匹配
     const kwAns = matchKeyword(txt);
     if(kwAns){
@@ -149,30 +137,11 @@ async function sendMessage(){
         await typeWrite(bubble, kwAns);
         return;
     }
-    //3.调用本地WebGPU大模型
-    const bubble = addMsg("", false);
-    let ans;
-    try{
-        ans = await localLLM(txt);
-    }catch(err){
-        console.error(err);
-        ans = fallbackReplies[Math.floor(Math.random()*fallbackReplies.length)];
-    }
-    await typeWrite(bubble, ans);
-}
 
-// 加载transformers.js本地模型
-async function loadModel(){
-    try{
-        loadTip.innerText = "正在加载本地AI模型，文件较大，请耐心等待...";
-        const pipeline = window.pipeline;
-        generator = await pipeline('text-generation', 'Xenova/distilgpt2');
-        modelReady = true;
-        loadTip.innerText = "✅本地小模型加载完毕，可以开始对话";
-    }catch(err){
-        loadTip.innerText = "❌模型加载失败，你的浏览器不支持WebGPU，只能使用关键词模式";
-        console.error(err);
-    }
+    //3.兜底回复
+    const bubble = addMsg("", false);
+    const ans = fallbackReplies[Math.floor(Math.random()*fallbackReplies.length)];
+    await typeWrite(bubble, ans);
 }
 
 //语音识别
@@ -190,6 +159,7 @@ if(window.webkitSpeechRecognition){
         micBtn.classList.remove('listening');
     }
 }
+
 micBtn.onclick = ()=>{
     if(!recognition){alert("你的浏览器不支持语音识别");return;}
     if(isListen){
@@ -206,9 +176,11 @@ inputDom.onkeydown = e=>{
     if(e.key==='Enter') sendMessage();
 }
 
-//启动加载模型
-loadModel();
+//页面加载自动发送开场白
+window.addEventListener('load', async ()=>{
+    const bubble = addMsg("", false);
+    await typeWrite(bubble, "我是人工智障乐子，很高兴为您服务。");
+});
 </script>
 </body>
 </html>
-
