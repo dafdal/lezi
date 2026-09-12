@@ -1,186 +1,523 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI乐子</title>
-    <!-- 仅浏览器标签页左上角favicon：白底黑字“乐” -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32'><rect width='32' height='32' fill='white'/><text x='16' y='24' font-size='22' text-anchor='middle' fill='black'>乐</text></svg>">
-    <style>
-        *{margin:0;padding:0;box-sizing:border-box;font-family:system-ui;}
-        body{background:#16213e;color:#fff;padding:20px;}
-        .container{max-width:850px;margin:0 auto;}
-        h1{
-            text-align:center;
-            color:#63aaff;
-            margin-bottom:20px;
-            font-size:24px;
-        }
-        .chat-box{background:#1a2b4d;border-radius:12px;padding:16px;min-height:480px;max-height:580px;overflow-y:auto;margin-bottom:15px;}
-        .msg{margin:10px 0;display:flex;}
-        .msg.ai{justify-content:flex-start;}
-        .msg.me{justify-content:flex-end;}
-        .bubble{max-width:72%;padding:12px 16px;border-radius:14px;line-height:1.5;word-wrap:break-word;}
-        .ai .bubble{background:#283b64;}
-        .me .bubble{background:#2068d0;}
-        .input-area{display:flex;gap:10px;}
-        #input{flex:1;padding:12px 14px;border-radius:8px;border:none;background:#223359;color:#fff;outline:none;font-size:16px;}
-        .btn{padding:12px 18px;border:none;border-radius:8px;background:#3478e8;color:#fff;cursor:pointer;font-size:15px;}
-        .btn:hover{background:#2962c2;}
-        .btn.listening{background:#c82423;}
-        .footer{text-align:center;margin-top:16px;color:#94a3c7;font-size:13px;}
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#04060d">
+<title>AI乐子 - 智能聊天</title>
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Orbitron:wght@500;700;900&family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap">
+<style>
+:root{
+  --bg0:#04060d; --bg1:#070b18; --bg2:#0b1226; --bg3:#0e162c;
+  --ink:#e9f1ff; --mut:#8ea3c9; --dim:#5c7096;
+  --cy:#21e6ff; --bl:#3d7bff; --vi:#8a5cff; --pk:#ff2e88;
+  --line:rgba(116,154,255,.14);
+  --grad:linear-gradient(100deg,#21e6ff 0%,#3d7bff 45%,#8a5cff 100%);
+  --font-d:"Orbitron","Noto Sans SC",sans-serif;
+  --font-c:"Noto Sans SC","Microsoft YaHei",sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:var(--font-c);background:var(--bg0);color:var(--ink);line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+::selection{background:rgba(33,230,255,.28);color:#fff}
+::-webkit-scrollbar{width:9px}
+::-webkit-scrollbar-track{background:#05070f}
+::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#21e6ff,#3d7bff);border-radius:6px;border:2px solid #05070f}
+a{color:inherit}
+button{font-family:inherit}
+:focus-visible{outline:2px solid var(--cy);outline-offset:2px}
+/* ===== 背景层 ===== */
+.bg-glow{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(62vw 48vw at 82% -8%,rgba(61,123,255,.12),transparent 60%),radial-gradient(52vw 42vw at 6% 34%,rgba(138,92,255,.09),transparent 62%),radial-gradient(44vw 40vw at 50% 108%,rgba(33,230,255,.07),transparent 60%)}
+#fx{position:fixed;inset:0;z-index:60;pointer-events:none;opacity:.85}
+.cursor{position:fixed;width:540px;height:540px;left:0;top:0;z-index:61;pointer-events:none;background:radial-gradient(circle,rgba(33,230,255,.09),transparent 62%);mix-blend-mode:screen;border-radius:50%;transform:translate(-1000px,-1000px)}
+@media (pointer:coarse){.cursor{display:none}}
+/* ===== 顶栏 ===== */
+header{position:fixed;top:0;left:0;right:0;z-index:900;display:flex;justify-content:space-between;align-items:center;padding:0 clamp(12px,3vw,40px);height:72px;border-bottom:1px solid transparent;transition:.35s}
+header.scrolled{background:rgba(5,8,18,.78);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom-color:var(--line);box-shadow:0 8px 30px rgba(2,4,10,.5)}
+.logo{display:flex;align-items:center;gap:13px;text-decoration:none}
+.logo .mark{width:42px;height:42px;flex:none;border-radius:50%;object-fit:cover;border:1px solid rgba(33,230,255,.45);box-shadow:0 0 14px rgba(33,230,255,.35)}
+.logo .lt{display:flex;flex-direction:column;line-height:1.15}
+.logo .lt b{font-size:20px;font-weight:900;letter-spacing:2px;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;white-space:nowrap}
+.logo .lt small{font-family:var(--font-d);font-size:8.5px;letter-spacing:3.6px;color:var(--dim);text-transform:uppercase;margin-top:3px}
+.header-right{display:flex;align-items:center;gap:14px}
+/* ===== 语言切换 ===== */
+.lang-switch{position:relative;display:flex;align-items:center;height:36px;border:1px solid rgba(116,154,255,.38);border-radius:999px;overflow:hidden;cursor:pointer;user-select:none;background:rgba(33,230,255,.04);flex:none}
+.lang-switch .pill{position:absolute;top:2px;bottom:2px;left:2px;width:calc(50% - 2px);border-radius:999px;background:var(--grad);z-index:1;transition:transform .32s ease;box-shadow:0 0 14px rgba(33,230,255,.4)}
+.lang-switch .lg{position:relative;z-index:2;padding:0 14px;font-size:11.5px;letter-spacing:2px;font-weight:700;font-family:var(--font-d);color:var(--mut);transition:color .3s;line-height:36px}
+body.lang-zh .lang-switch .pill{transform:translateX(100%)}
+body.lang-zh .lang-switch .lg-en{color:var(--mut)}
+body.lang-zh .lang-switch .lg-zh{color:#04121f}
+body.lang-en .lang-switch .lg-en{color:#04121f}
+body.lang-en .lang-switch .lg-zh{color:var(--mut)}
+.info-wrap{position:relative}
+.info-icon{width:40px;height:40px;border:1px solid rgba(116,154,255,.4);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--cy);font-family:var(--font-d);font-size:14px;font-weight:700;cursor:pointer;user-select:none;transition:.28s;background:rgba(33,230,255,.05)}
+.info-icon:hover{background:var(--cy);color:#04121f;box-shadow:0 0 22px rgba(33,230,255,.5)}
+.info-popup{position:absolute;top:44px;right:0;width:330px;background:rgba(8,13,26,.96);border:1px solid var(--line);backdrop-filter:blur(14px);padding:20px 22px;border-radius:4px;box-shadow:0 18px 50px rgba(2,4,10,.7);z-index:1000;opacity:0;visibility:hidden;transform:translateY(10px);transition:.3s}
+.info-popup.show{opacity:1;visibility:visible;transform:none}
+.info-popup h4{color:var(--cy);font-size:14px;letter-spacing:3px;margin-bottom:10px;font-weight:700}
+.info-popup p{font-size:13px;line-height:1.8;color:var(--mut)}
+/* ===== AI 设置 ===== */
+.set-wrap{position:relative}
+.set-btn{width:40px;height:40px;border:1px solid rgba(116,154,255,.4);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--cy);cursor:pointer;user-select:none;transition:.28s;background:rgba(33,230,255,.05)}
+.set-btn:hover{background:var(--cy);color:#04121f;box-shadow:0 0 22px rgba(33,230,255,.5)}
+.set-btn svg{width:18px;height:18px}
+.set-popup{position:absolute;top:44px;right:0;width:340px;background:rgba(8,13,26,.97);border:1px solid var(--line);backdrop-filter:blur(14px);padding:20px 22px;border-radius:4px;box-shadow:0 18px 50px rgba(2,4,10,.7);z-index:1000;opacity:0;visibility:hidden;transform:translateY(10px);transition:.3s;max-height:calc(100vh - 90px);overflow-y:auto}
+.set-popup.show{opacity:1;visibility:visible;transform:none}
+.set-popup h4{color:var(--cy);font-size:14px;letter-spacing:3px;margin-bottom:12px;font-weight:700}
+.set-label{display:block;font-size:12px;color:var(--dim);letter-spacing:2px;margin:12px 0 6px}
+.prov-row{display:flex;gap:8px;flex-wrap:wrap}
+.prov{flex:1;min-width:120px;padding:9px 10px;font-size:12px;color:#bfeaff;background:rgba(33,230,255,.05);border:1px solid rgba(33,230,255,.35);cursor:pointer;transition:.3s;font-family:inherit}
+.prov:hover{background:var(--cy);color:#04121f;box-shadow:0 0 16px rgba(33,230,255,.35)}
+.set-in{width:100%;padding:10px 12px;font-size:13px;color:var(--ink);background:#101a30;border:1px solid rgba(116,154,255,.25);border-radius:4px;outline:none;font-family:var(--font-c)}
+.set-in:focus{border-color:rgba(33,230,255,.6);box-shadow:0 0 12px rgba(33,230,255,.12)}
+.set-actions{display:flex;gap:10px;margin-top:16px}
+.mini-btn{flex:1;padding:11px 0;font-size:13.5px;letter-spacing:2px;cursor:pointer;color:var(--cy);background:none;border:1px solid rgba(33,230,255,.4);transition:.3s;font-family:inherit;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+.mini-btn:hover{background:rgba(33,230,255,.1)}
+.mini-btn.prim{color:#04121f;background:linear-gradient(100deg,#21e6ff,#3d7bff);border:none;font-weight:700}
+.mini-btn.prim:hover{box-shadow:0 0 20px rgba(33,230,255,.4)}
+.set-tip{font-size:11.5px;color:var(--dim);margin-top:12px;line-height:1.7}
+/* ===== 角标体系 ===== */
+.fr{position:relative}
+.fr::before,.fr::after{content:"";position:absolute;width:22px;height:22px;border:0 solid var(--cy);pointer-events:none;z-index:5}
+.fr::before{top:-1px;left:-1px;border-top-width:2px;border-left-width:2px}
+.fr::after{bottom:-1px;right:-1px;border-bottom-width:2px;border-right-width:2px}
+.fr i{position:absolute;width:20px;height:20px;border:0 solid var(--cy);pointer-events:none;z-index:5}
+.fr i.cr1{top:-1px;right:-1px;border-top-width:2px;border-right-width:2px}
+.fr i.cr2{bottom:-1px;left:-1px;border-bottom-width:2px;border-left-width:2px}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+/* ===== 聊天区 ===== */
+.chat-sec{position:relative;z-index:2;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:110px clamp(12px,4vw,32px) 60px}
+.chat-panel{position:relative;width:100%;max-width:920px;background:linear-gradient(170deg,rgba(14,21,42,.94),rgba(7,11,24,.98));border:1px solid var(--line);padding:24px 24px 20px;display:flex;flex-direction:column;gap:16px;box-shadow:0 30px 80px rgba(2,5,14,.6)}
+.chat-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.c-avatar{width:52px;height:52px;border-radius:50%;overflow:hidden;border:1px solid rgba(33,230,255,.45);box-shadow:0 0 22px rgba(33,230,255,.28);flex:none}
+.c-avatar img{width:100%;height:100%;object-fit:cover}
+.c-name{font-size:20px;font-weight:900;letter-spacing:2px;color:#fff;line-height:1.2}
+.c-sub{font-family:var(--font-d);font-size:9px;letter-spacing:3px;color:var(--dim);text-transform:uppercase;margin-top:2px}
+.stat{margin-left:auto;display:inline-flex;align-items:center;gap:7px;font-size:11.5px;letter-spacing:1px;padding:6px 13px;border:1px solid var(--line);border-radius:999px;color:var(--mut);cursor:pointer;user-select:none;transition:.3s}
+.stat .dot{width:7px;height:7px;border-radius:50%;background:#5c7096}
+.stat.on{border-color:rgba(33,230,255,.4);color:#bfeaff}
+.stat.on .dot{background:var(--cy);box-shadow:0 0 8px var(--cy);animation:pulse 1.6s ease-in-out infinite}
+.stat.off{border-color:rgba(255,176,32,.35);color:#ffc466}
+.stat.off .dot{background:#ffb020}
+.stat.think .dot{background:var(--vi);box-shadow:0 0 8px var(--vi);animation:pulse .8s ease-in-out infinite}
+.clear-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:none;border:1px solid rgba(116,154,255,.35);color:var(--mut);font-size:12.5px;letter-spacing:1px;cursor:pointer;transition:.3s}
+.clear-btn:hover{color:var(--cy);border-color:var(--cy);box-shadow:0 0 16px rgba(33,230,255,.3)}
+.clear-btn svg{width:14px;height:14px}
+.chat-box{height:440px;max-height:54vh;overflow-y:auto;display:flex;flex-direction:column;gap:16px;padding:6px 4px 10px}
+.msg{display:flex;gap:10px;max-width:84%;align-items:flex-end}
+.msg.ai{align-self:flex-start}
+.msg.me{align-self:flex-end;flex-direction:row-reverse}
+.avatar{width:36px;height:36px;border-radius:50%;overflow:hidden;flex:none;border:1px solid rgba(33,230,255,.35);box-shadow:0 0 12px rgba(33,230,255,.18)}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.bubble{padding:11px 15px;border-radius:4px;line-height:1.75;font-size:14.5px;word-break:break-word;white-space:pre-wrap}
+.msg.ai .bubble{background:#16233f;border:1px solid rgba(116,154,255,.22);border-left:2px solid var(--cy)}
+.msg.me .bubble{background:linear-gradient(100deg,#21e6ff,#3d7bff);color:#04121f;font-weight:500}
+.msg.thinking .bubble{color:var(--dim)}
+.input-area{display:flex;gap:10px}
+#input{flex:1;background:#101a30;border:1px solid rgba(116,154,255,.25);border-radius:4px;color:#e9f1ff;padding:13px 16px;font-size:15px;outline:none;transition:.3s;font-family:inherit}
+#input::placeholder{color:var(--dim)}
+#input:focus{border-color:rgba(33,230,255,.6);box-shadow:0 0 16px rgba(33,230,255,.12)}
+.icon-btn{width:52px;height:52px;flex:none;display:flex;align-items:center;justify-content:center;background:rgba(33,230,255,.06);border:1px solid rgba(33,230,255,.38);color:var(--cy);cursor:pointer;transition:.3s;clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
+.icon-btn:hover{background:var(--cy);color:#04121f;box-shadow:0 0 22px rgba(33,230,255,.4)}
+.icon-btn svg{width:22px;height:22px}
+.icon-btn.listening{background:var(--pk);color:#fff;border-color:var(--pk);box-shadow:0 0 22px rgba(255,46,136,.45)}
+.send-btn{height:52px;flex:none;display:inline-flex;align-items:center;gap:8px;padding:0 26px;border:none;cursor:pointer;color:#04121f;font-size:15px;font-weight:700;letter-spacing:2px;background:linear-gradient(100deg,#21e6ff,#3d7bff);transition:.32s;clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px)}
+.send-btn:hover{box-shadow:0 0 30px rgba(33,230,255,.45);transform:translateY(-2px)}
+.send-btn svg{width:17px;height:17px}
+.chat-hint{margin-top:2px;display:flex;justify-content:center;gap:20px;color:var(--dim);font-size:12px;flex-wrap:wrap}
+.chat-hint span{display:inline-flex;align-items:center;gap:6px}
+.chat-hint svg{width:13px;height:13px;color:var(--cy)}
+/* ===== 页脚 ===== */
+footer{position:relative;z-index:2;background:var(--bg1);border-top:1px solid var(--line);padding:34px clamp(16px,5vw,40px);text-align:center}
+footer p{font-size:13px;color:var(--dim)}
+footer .disc{font-size:12px;margin-top:6px;opacity:.85}
+/* ===== 响应式 ===== */
+@media (max-width:600px){
+  .chat-panel{padding:18px 14px 16px}
+  .chat-box{height:52vh;max-height:52vh}
+  .stat{margin-left:auto}
+  .c-sub{display:none}
+  .send-btn{padding:0 18px}
+  .msg{max-width:92%}
+  #input{font-size:16px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  html{scroll-behavior:auto}
+}
+</style>
 </head>
-<body>
-<div class="container">
-    <h1>AI 乐子</h1>
+<body class="lang-zh">
+<div class="bg-glow" aria-hidden="true"></div>
+<canvas id="fx" aria-hidden="true"></canvas>
+<div class="cursor" id="cursor" aria-hidden="true"></div>
+<!-- ===== 顶栏 ===== -->
+<header id="head">
+  <a class="logo" href="#top" aria-label="AI Lezi">
+    <img class="mark" src="logo.png" alt="AI Lezi logo">
+    <span class="lt"><b data-i18n="logo.brand">AI 乐子</b><small>LEZI AI</small></span>
+  </a>
+  <div class="header-right">
+    <div class="set-wrap fr">
+      <button class="set-btn" id="setBtn" type="button" aria-label="AI Settings" data-i18n-aria="set.btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.9 2.9l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.9-2.9l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.9-2.9l.1.1a1.7 1.7 0 0 0 1.9.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h.1a1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.9 2.9l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+      <div class="set-popup" id="setPop">
+        <h4 data-i18n="set.title">AI 设置</h4>
+        <p class="set-tip" data-i18n="set.ready">AI 服务已自动配置完成，所有访客打开网页即可直接使用，无需登录。</p>
+      </div>
+    </div>
+    <div class="lang-switch" id="langSwitch" role="button" tabindex="0" aria-label="Switch language">
+      <span class="pill" aria-hidden="true"></span>
+      <span class="lg lg-en">EN</span>
+      <span class="lg lg-zh">中文</span>
+    </div>
+    <div class="info-wrap fr">
+      <div class="info-icon" id="infoIcon" role="button" aria-label="Disclaimer" tabindex="0">i</div>
+      <div class="info-popup" id="infoPop">
+        <h4 data-i18n="disc.title">免责声明</h4>
+        <p data-i18n="disc.text">本页面为完全虚构演示应用，AI乐子为虚构的演示聊天机器人，对话内容由在线AI模型生成或本地预设回复构成，仅供网页技术演示学习使用，不构成任何专业建议。若有雷同纯属巧合。</p>
+      </div>
+    </div>
+  </div>
+</header>
+<main>
+<!-- ===== 聊天面板 ===== -->
+<section class="chat-sec" id="top">
+  <div class="chat-panel fr rv">
+    <i class="cr1"></i><i class="cr2"></i>
+    <div class="chat-head">
+      <div class="c-avatar"><img src="logo.png" alt="AI Lezi"></div>
+      <div>
+        <div class="c-name" data-i18n="logo.brand">AI 乐子</div>
+        <div class="c-sub">LEZI AI · ONLINE BRAIN</div>
+      </div>
+      <span class="stat" id="statChip" role="status"><span class="dot"></span><span data-i18n="stat.ready">准备中…</span></span>
+      <button class="clear-btn" id="clearBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13"/></svg><span data-i18n="chat.clear">清空</span></button>
+    </div>
     <div class="chat-box" id="chatbox"></div>
     <div class="input-area">
-        <input id="input" placeholder="在这里输入消息，回车发送，可以输入算式计算">
-        <button class="btn" id="micBtn">🎤</button>
-        <button class="btn" id="sendBtn">发送</button>
+      <input id="input" data-i18n-ph="chat.placeholder" placeholder="在这里输入消息，回车发送，支持算式和语音">
+      <button class="icon-btn" id="micBtn" type="button" aria-label="Voice input"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+      <button class="send-btn" id="sendBtn" type="button"><span data-i18n="chat.send">发送</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
     </div>
-    <div class="footer">©2026 大风大浪集团版权所有</div>
-</div>
+    <div class="chat-hint">
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.5"/></svg><span data-i18n="hint.math">输入算式直接计算</span></span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12M6 8l6-4 6 4M5 20h14"/></svg><span data-i18n="hint.voice">支持语音输入</span></span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.4 5.2 5.6.6-4.2 3.8 1.2 5.6-5-2.8-5 2.8 1.2-5.6L4 8.8l5.6-.6z"/></svg><span data-i18n="hint.ai">在线接入大模型</span></span>
+    </div>
+  </div>
+</section>
+</main>
+<!-- ===== 页脚 ===== -->
+<footer>
+  <p data-i18n="foot.copy">© 2026 大风大浪集团 版权所有</p>
+  <p class="disc" data-i18n="foot.disc">本页面为虚构演示应用，内容仅供网页技术演示学习使用。</p>
+</footer>
 <script>
-const chatbox = document.getElementById('chatbox');
-const inputDom = document.getElementById('input');
-const sendBtn = document.getElementById('sendBtn');
-const micBtn = document.getElementById('micBtn');
-let recognition = null;
-let isListen = false;
-
-// ========== 关键词知识库 ==========
-const keywordReplies = [
-    { keys:["你好","嗨","哈喽","hi","hello","早上好","下午好","晚上好"], replies:["你好呀！很高兴和你聊天~","嗨！今天有什么想聊的？"]},
-    { keys:["傻逼","sb","傻b","脏话","骂人","滚","讨厌你","去死"], replies:["请文明聊天，不要说不友好的话语。","我们好好沟通，不要使用不好的词语。"]},
-    { keys:["你是谁","你叫什么"], replies:["我叫乐子，是大风大浪集团开发的网页聊天机器人。"]}
-];
-
-// 兜底回复
-const fallbackReplies = [
-    "哈哈，原来是这样，继续说说吧。",
-    "这个话题很有意思，再多讲讲。",
-    "我在听，你继续说。"
-];
-
-// 打字机效果
-async function typeWrite(el, text, speed=35){
-    el.innerHTML = "";
-    for(let ch of text){
-        el.innerHTML += ch;
-        chatbox.scrollTop = chatbox.scrollHeight;
-        await new Promise(r=>setTimeout(r, speed));
+(function(){
+"use strict";
+var $=function(s){return document.querySelector(s)};
+var $$=function(s){return Array.prototype.slice.call(document.querySelectorAll(s))};
+var reduce=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+var fine=matchMedia("(pointer: fine)").matches;
+/* ===== 国际化 ===== */
+var I18N={
+  "doc.title":{en:"AI Lezi - Smart Chat",zh:"AI乐子 - 智能聊天"},
+  "logo.brand":{en:"AI Lezi",zh:"AI 乐子"},
+  "disc.title":{en:"Disclaimer",zh:"免责声明"},
+  "disc.text":{en:"This page is a purely fictional demonstration. AI Lezi is a fictional demo chatbot; conversations are produced by an online AI service or preset local replies, for web technology demonstration and learning purposes only. Any resemblance is purely coincidental.",zh:"本页面为完全虚构演示应用，AI乐子为虚构的演示聊天机器人，对话内容由在线AI服务生成或本地预设回复构成，仅供网页技术演示学习使用。若有雷同纯属巧合。"},
+  "stat.ready":{en:"READY…",zh:"准备中…"},
+  "stat.think":{en:"THINKING…",zh:"思考中…"},
+  "stat.online":{en:"AI ONLINE",zh:"AI 在线"},
+  "stat.local":{en:"LOCAL MODE · TAP TO SETUP",zh:"本地模式 · 点击设置AI"},
+  "chat.clear":{en:"CLEAR",zh:"清空"},
+  "chat.send":{en:"SEND",zh:"发送"},
+  "chat.placeholder":{en:"Type a message... Enter to send, math & voice supported",zh:"在这里输入消息，回车发送，支持算式和语音"},
+  "hint.math":{en:"Type a math expression to calculate",zh:"输入算式直接计算"},
+  "hint.voice":{en:"Voice input supported",zh:"支持语音输入"},
+  "hint.ai":{en:"Online AI brain when available",zh:"在线接入大模型"},
+  "set.title":{en:"AI Settings",zh:"AI 设置"},
+  "set.ready":{en:"AI service is configured. All visitors can use it directly, no login required.",zh:"AI 服务已自动配置完成，所有访客打开网页即可直接使用，无需登录。"},
+  "set.btn":{en:"AI Settings",zh:"AI 设置"},
+  "greeting":{en:"I'm Lezi, your AI buddy! Chat, math, voice — powered by online AI when connected.",zh:"我是AI乐子，很高兴为您服务！可以聊聊天、算算数、语音输入，联网后还能自动搜索回答～"},
+  "foot.copy":{en:"© 2026 DAFDAL Group All Rights Reserved",zh:"© 2026 大风大浪集团 版权所有"},
+  "foot.disc":{en:"This page is a fictional demonstration for web technology learning purposes only.",zh:"本页面为虚构演示应用，内容仅供网页技术演示学习使用。"},
+  "aria.langSwitch":{en:"Switch language",zh:"切换语言"}
+};
+var LANG_KEY="ailezi.lang";
+var lang="zh";
+try{var saved=localStorage.getItem(LANG_KEY);if(saved==="zh"||saved==="en")lang=saved;}catch(e){}
+var langBtn=$("#langSwitch");
+function applyLang(l){
+  lang=l;
+  document.documentElement.lang = l==="zh"?"zh-CN":"en";
+  document.body.classList.toggle("lang-zh",l==="zh");
+  document.body.classList.toggle("lang-en",l==="en");
+  var d=I18N;
+  $$("[data-i18n]").forEach(function(el){
+    var v=d[el.getAttribute("data-i18n")];
+    if(v&&v[l]!=null)el.innerHTML=v[l];
+  });
+  $$("[data-i18n-ph]").forEach(function(el){
+    var v=d[el.getAttribute("data-i18n-ph")];
+    if(v&&v[l]!=null)el.setAttribute("placeholder",v[l]);
+  });
+  $$("[data-i18n-aria]").forEach(function(el){
+    var v=d[el.getAttribute("data-i18n-aria")];
+    if(v&&v[l])el.setAttribute("aria-label",v[l]);
+  });
+  document.title=d["doc.title"][l];
+  langBtn.setAttribute("aria-label",d["aria.langSwitch"][l]);
+  setStat(statMode);
+  if(chatbox.children.length===0) greet();
+  try{localStorage.setItem(LANG_KEY,lang);}catch(e){}
+}
+/* ===== 粒子场 ===== */
+(function(){
+  if(reduce)return;
+  var cv=$("#fx");if(!cv||!cv.getContext)return;
+  var ctx=cv.getContext("2d");
+  var W,H,ps=[],dpr=Math.min(devicePixelRatio||1,2);
+  var COL=["33,230,255","61,123,255","138,92,255"];
+  function resize(){W=innerWidth;H=innerHeight;cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+"px";cv.style.height=H+"px";ctx.setTransform(dpr,0,0,dpr,0,0)}
+  function build(){
+    var n=Math.max(30,Math.min(70,Math.round(W*H/26000)));
+    ps=[];
+    for(var i=0;i<n;i++){
+      ps.push({x:Math.random()*W,y:Math.random()*H,r:0.6+Math.random()*1.7,vx:(Math.random()-.5)*.18,vy:-.06-Math.random()*.22,tw:.002+Math.random()*.012,ph:Math.random()*Math.PI*2,c:COL[Math.floor(Math.random()*COL.length)]});
     }
-}
-
-// 添加消息气泡
-function addMsg(text, isMe=false){
-    const wrap = document.createElement('div');
-    wrap.className = 'msg ' + (isMe?'me':'ai');
-    const bubble = document.createElement('div');
-    bubble.className = 'bubble';
-    bubble.textContent = text;
-    wrap.appendChild(bubble);
-    chatbox.appendChild(wrap);
-    chatbox.scrollTop = chatbox.scrollHeight;
-    return bubble;
-}
-
-// 关键词匹配
-function matchKeyword(text){
-    const low = text.toLowerCase();
-    for(let item of keywordReplies){
-        for(let kw of item.keys){
-            if(low.includes(kw.toLowerCase())){
-                const idx = Math.floor(Math.random()*item.replies.length);
-                return item.replies[idx];
-            }
-        }
+  }
+  function frame(){
+    ctx.clearRect(0,0,W,H);
+    var t=Date.now()*.001;
+    for(var i=0;i<ps.length;i++){
+      var p=ps[i];
+      p.x+=p.vx;p.y+=p.vy;p.ph+=p.tw;
+      if(p.y<-12){p.y=H+12;p.x=Math.random()*W}
+      if(p.x<-12)p.x=W+12;if(p.x>W+12)p.x=-12;
+      var a=.16+Math.abs(Math.sin(p.ph+t))*0.5;
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fillStyle="rgba("+p.c+","+a.toFixed(3)+")";ctx.fill();
     }
-    return null;
+    requestAnimationFrame(frame);
+  }
+  resize();build();
+  addEventListener("resize",function(){resize();build()},{passive:true});
+  requestAnimationFrame(frame);
+})();
+/* ===== 光标辉光 ===== */
+if(fine&&!reduce){
+  var cur=$("#cursor");
+  var tx=innerWidth/2,ty=innerHeight/2,x=tx,y=ty;
+  addEventListener("mousemove",function(e){tx=e.clientX;ty=e.clientY},{passive:true});
+  (function loop(){x+=(tx-x)*.12;y+=(ty-y)*.12;cur.style.transform="translate("+(x-270)+"px,"+(y-270)+"px)";requestAnimationFrame(loop)})();
 }
-
-// 简单数学算式匹配
+/* ===== 顶栏滚动 ===== */
+var head=$("#head");
+addEventListener("scroll",function(){head.classList.toggle("scrolled",scrollY>10)},{passive:true});
+/* ===== 免责弹窗 ===== */
+var ic=$("#infoIcon"),pop=$("#infoPop");
+function closePop(){pop.classList.remove("show")}
+ic.addEventListener("click",function(e){e.stopPropagation();pop.classList.toggle("show")});
+ic.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();e.stopPropagation();pop.classList.toggle("show")}});
+document.addEventListener("click",function(e){if(!pop.contains(e.target))closePop()});
+document.addEventListener("keydown",function(e){if(e.key==="Escape"){closePop();if(setPop)setPop.classList.remove("show")}});
+/* ===== 聊天 ===== */
+var chatbox=$("#chatbox"),inputDom=$("#input"),sendBtn=$("#sendBtn"),micBtn=$("#micBtn"),statChip=$("#statChip");
+var statMode="ready";
+function setStat(m){
+  statMode=m;
+  var map={ready:"stat.ready",think:"stat.think",on:"stat.online",off:"stat.local"};
+  statChip.className="stat "+m;
+  var sp=statChip.querySelector("[data-i18n]");
+  if(sp)sp.textContent=I18N[map[m]][lang];
+  if(m==="off"){statChip.title=I18N["stat.local"][lang]}
+}
+function addMsg(text,isMe){
+  var wrap=document.createElement("div");
+  wrap.className="msg "+(isMe?"me":"ai");
+  if(!isMe){
+    var av=document.createElement("div");
+    av.className="avatar";
+    var im=document.createElement("img");
+    im.src="logo.png";im.alt="AI";
+    av.appendChild(im);
+    wrap.appendChild(av);
+  }
+  var bubble=document.createElement("div");
+  bubble.className="bubble";
+  bubble.textContent=text;
+  wrap.appendChild(bubble);
+  chatbox.appendChild(wrap);
+  chatbox.scrollTop=chatbox.scrollHeight;
+  return bubble;
+}
+async function typeWrite(el,text,speed){
+  speed=speed||22;
+  el.textContent="";
+  if(reduce){el.textContent=text;chatbox.scrollTop=chatbox.scrollHeight;return}
+  for(var i=0;i<text.length;i++){
+    el.textContent+=text.charAt(i);
+    chatbox.scrollTop=chatbox.scrollHeight;
+    await new Promise(function(r){setTimeout(r,speed)});
+  }
+}
+async function aiReply(text){
+  var bubble=addMsg("",false);
+  await typeWrite(bubble,text);
+}
+function timeNow(){
+  var d=new Date(),hh=("0"+d.getHours()).slice(-2),mm=("0"+d.getMinutes()).slice(-2);
+  return lang==="zh"?("现在是 "+hh+":"+mm):("It is "+hh+":"+mm);
+}
+function dateNow(){
+  var d=new Date(),mo=d.getMonth()+1,da=d.getDate();
+  return lang==="zh"?(d.getFullYear()+"年"+mo+"月"+da+"日"):(d.getFullYear()+"-"+("0"+mo).slice(-2)+"-"+("0"+da).slice(-2));
+}
+/* ===== 本地知识库 ===== */
+var KB=[
+ {keys:["你好","嗨","哈喽","hi","hello","早上好","下午好","晚上好","在吗","在不在"],replies:["你好呀！很高兴和你聊天～","嗨！今天有什么想聊的？"]},
+ {keys:["你是谁","你叫什么","介绍一下你","介绍下你","你是谁呀"],replies:["我是乐子，大风大浪集团的AI聊天机器人，很高兴认识你！","我叫乐子，专陪聊天的AI小助手～"]},
+ {keys:["能干什么","会什么","能干嘛","有什么功能","你会什么","可以做什么"],replies:["我可以聊天、算数学、语音输入，联网的时候还能自动搜索问题来回答你～","聊聊天、算算数、搜问题，都是我的强项！"]},
+ {keys:["谁开发的","谁做的","谁造的","哪来的"],replies:["我是大风大浪集团开发的网页聊天机器人。","我的家在大风大浪集团！"]},
+ {keys:["谢谢","感谢","thank","3q"],replies:["不客气～","小事一桩，随时找我！"]},
+ {keys:["再见","拜拜","bye","晚安","下次聊"],replies:["再见啦，随时回来找我～","拜拜，祝你开心！"]},
+ {keys:["傻逼","sb","傻b","滚","讨厌你","去死","脏话","骂人","你妈"],replies:["请文明聊天，不要说不友好的话语。","我们好好沟通，不要使用不好的词语。"]},
+ {keys:["好烦","不开心","难过","伤心","累了"],replies:["抱抱你，不开心的事说出来会好一点，我一直都在。","别难过啦，来聊点开心的？我一直陪着你。"]},
+ {keys:["笑话","讲个笑话","来一个笑话"],replies:["为什么乒乓球拍会飞？因为它被“飞拍”了！","为什么乐子总在笑？因为它的代码里全是快乐！"]},
+ {keys:["几点","现在几点","时间"],replies:["now_time"]},
+ {keys:["日期","今天几号","几号了","今天日期"],replies:["now_date"]},
+ {keys:["天气"],replies:["我联网后可以帮你搜天气～先试试问我别的问题？"]},
+ {keys:["飞拍"],replies:["飞拍就是把乒乓球拍扔出去接球，战神飞拍的招牌玩法！"]}
+];
+function localBrain(text){
+  var low=text.toLowerCase();
+  for(var i=0;i<KB.length;i++){
+    var item=KB[i];
+    for(var j=0;j<item.keys.length;j++){
+      if(low.indexOf(item.keys[j])>=0){
+        var ans=item.replies[Math.floor(Math.random()*item.replies.length)];
+        if(ans==="now_time")return timeNow();
+        if(ans==="now_date")return dateNow();
+        return ans;
+      }
+    }
+  }
+  return null;
+}
+var fallbackReplies=[
+  "哈哈，原来是这样，继续说说吧。",
+  "这个话题很有意思，再多讲讲～",
+  "我在听，你继续说～",
+  "有道理！然后呢？",
+  "嗯嗯，我懂你的意思。"
+];
+/* ===== 算式计算 ===== */
 function calcMath(text){
-    const reg = /[-+*/()0-9. ]+/;
-    const m = text.match(reg);
-    if(!m) return null;
-    const expr = m[0].trim();
-    if(!/^[0-9+\-*/(). ]+$/.test(expr)) return null;
-    try{
-        const res = Function('"use strict";return ('+expr+')')();
-        if(!isFinite(res)) return null;
-        return `算式 ${expr} = ${res}`;
-    }catch(e){return null;}
+  var reg=text.match(/[-+*/()0-9. ]+/);
+  if(!reg)return null;
+  var expr=reg[0].trim();
+  if(!/^[0-9+\-*/(). ]+$/.test(expr))return null;
+  try{
+    var res=Function('"use strict";return ('+expr+')')();
+    if(!isFinite(res))return null;
+    return "算式 "+expr+" = "+res;
+  }catch(e){return null}
 }
-
-// 发送消息主逻辑
+/* ===== AI 服务（浏览器本地模型） ===== */
+var SYS_PROMPT="你是AI乐子，大风大浪集团开发的网页聊天机器人。用简体中文、口语化、简短有趣地回复用户，回答不超过150字。";
+var setBtn=$("#setBtn"),setPop=$("#setPop");
+setBtn.addEventListener("click",function(e){e.stopPropagation();closePop();setPop.classList.toggle("show")});
+document.addEventListener("click",function(e){if(!setPop.contains(e.target)&&!setBtn.contains(e.target))setPop.classList.remove("show")});
+var generator=null,modelLoading=false;
+async function loadModel(){
+  if(generator||modelLoading)return;
+  modelLoading=true;
+  var loadBubble=addMsg("",false);
+  await typeWrite(loadBubble,"首次使用正在下载AI模型（约800MB），需要几分钟，请耐心等待...");
+  try{
+    var mod=await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0/dist/transformers.min.js");
+    mod.env.remoteHost="https://hf-mirror.com";
+    mod.env.allowLocalModels=false;
+    generator=await mod.pipeline("text-generation","Xenova/Qwen1.5-0.5B-Chat",{
+      dtype:"q4",
+      device:"wasm",
+      progress_callback:function(p){
+        if(p.status==="progress"&&p.file){
+          var pct=Math.round((p.progress||0));
+          loadBubble.textContent="正在下载模型 "+p.file.split("/").pop()+" "+pct+"%";
+        }
+      }
+    });
+    loadBubble.textContent="AI模型加载完成！现在可以聊天了～";
+    aiMode="on";setStat("on");
+  }catch(e){
+    loadBubble.textContent="模型加载失败："+(e&&e.message||e)+"。\n请用 Chrome 或 Edge 浏览器重试。";
+    aiMode="off";setStat("off");
+  }
+  modelLoading=false;
+}
+async function askWorker(text){
+  if(!generator){await loadModel()}
+  if(!generator)return null;
+  try{
+    var output=await generator([
+      {role:"system",content:SYS_PROMPT},
+      {role:"user",content:text}
+    ],{max_new_tokens:120,temperature:0.7,do_sample:true});
+    var reply=(output&&output[0]&&output[0].generated_text||"").trim();
+    return reply||null;
+  }catch(e){return null}
+}
+var aiMode="off";
+/* ===== 发送 ===== */
 async function sendMessage(){
-    const txt = inputDom.value.trim();
-    if(!txt) return;
-    inputDom.value = "";
-    addMsg(txt, true);
-
-    //1.数学计算优先
-    const mathRes = calcMath(txt);
-    if(mathRes){
-        const bubble = addMsg("", false);
-        await typeWrite(bubble, mathRes);
-        return;
-    }
-
-    //2.关键词匹配
-    const kwAns = matchKeyword(txt);
-    if(kwAns){
-        const bubble = addMsg("", false);
-        await typeWrite(bubble, kwAns);
-        return;
-    }
-
-    //3.兜底回复
-    const bubble = addMsg("", false);
-    const ans = fallbackReplies[Math.floor(Math.random()*fallbackReplies.length)];
-    await typeWrite(bubble, ans);
+  var txt=inputDom.value.trim();
+  if(!txt)return;
+  inputDom.value="";
+  addMsg(txt,true);
+  var mathRes=calcMath(txt);
+  if(mathRes){aiReply(mathRes);return}
+  var got=null;
+  setStat("think");
+  got=await askWorker(txt);
+  if(got){aiMode="on";setStat("on");aiReply(got);return}
+  aiMode="off";setStat("off");
+  var kb=localBrain(txt);
+  aiReply(kb||fallbackReplies[Math.floor(Math.random()*fallbackReplies.length)]);
 }
-
-//语音识别
-if(window.webkitSpeechRecognition){
-    recognition = new window.webkitSpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = 'zh‑CN';
-    recognition.onresult = e=>{
-        const text = e.results[0][0].transcript;
-        inputDom.value = text;
-    };
-    recognition.onend = ()=>{
-        isListen = false;
-        micBtn.classList.remove('listening');
-    }
-}
-
-micBtn.onclick = ()=>{
-    if(!recognition){alert("你的浏览器不支持语音识别");return;}
-    if(isListen){
-        recognition.stop();
-    }else{
-        isListen=true;
-        micBtn.classList.add('listening');
-        recognition.start();
-    }
-}
-
-sendBtn.onclick = sendMessage;
-inputDom.onkeydown = e=>{
-    if(e.key==='Enter') sendMessage();
-}
-
-//页面加载自动发送开场白
-window.addEventListener('load', async ()=>{
-    const bubble = addMsg("", false);
-    await typeWrite(bubble, "我是人工智障乐子，很高兴为您服务。");
+sendBtn.addEventListener("click",sendMessage);
+inputDom.addEventListener("keydown",function(e){if(e.key==="Enter")sendMessage()});
+/* ===== 状态chip点击：本地模式时打开设置 ===== */
+statChip.addEventListener("click",function(){
+  if(statMode==="off"||statMode==="ready")setPop.classList.add("show");
 });
+/* ===== 清空 ===== */
+$("#clearBtn").addEventListener("click",function(){chatbox.innerHTML="";greet()});
+/* ===== 语音 ===== */
+var recognition=null,isListen=false;
+if(window.webkitSpeechRecognition){
+  recognition=new window.webkitSpeechRecognition();
+  recognition.continuous=false;
+  recognition.interimResults=false;
+  recognition.lang="zh-CN";
+  recognition.onresult=function(e){inputDom.value=e.results[0][0].transcript};
+  recognition.onend=function(){isListen=false;micBtn.classList.remove("listening")};
+  recognition.onerror=function(){isListen=false;micBtn.classList.remove("listening")};
+}
+micBtn.addEventListener("click",function(){
+  if(!recognition){return}
+  if(isListen){recognition.stop()}
+  else{isListen=true;micBtn.classList.add("listening");try{recognition.start()}catch(e){isListen=false;micBtn.classList.remove("listening")}}
+});
+/* ===== 开场白 ===== */
+function greet(){
+  aiReply(I18N["greeting"][lang]);
+}
+langBtn.addEventListener("click",function(){applyLang(lang==="zh"?"en":"zh")});
+langBtn.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();applyLang(lang==="zh"?"en":"zh")}});
+applyLang(lang);
+})();
 </script>
 </body>
 </html>
