@@ -446,6 +446,7 @@ async function loadModel(){
     var mod=transformers;
     mod.env.remoteHost="https://hf-mirror.com";
     mod.env.allowLocalModels=false;
+    mod.env.backends.onnx.wasm.wasmPaths="./";
     generator=await mod.pipeline("text-generation","Xenova/Qwen1.5-0.5B-Chat",{
       dtype:"q4",
       device:"wasm",
