@@ -424,59 +424,39 @@ function calcMath(text){
     return "算式 "+expr+" = "+res;
   }catch(e){return null}
 }
-/* ===== AI 服务（浏览器本地模型） ===== */
+/* ===== AI 服务（pollinations GET 免费接口） ===== */
 var SYS_PROMPT="你是AI乐子，大风大浪集团开发的网页聊天机器人。用简体中文、口语化、简短有趣地回复用户，回答不超过150字。";
 var setBtn=$("#setBtn"),setPop=$("#setPop");
 setBtn.addEventListener("click",function(e){e.stopPropagation();closePop();setPop.classList.toggle("show")});
 document.addEventListener("click",function(e){if(!setPop.contains(e.target)&&!setBtn.contains(e.target))setPop.classList.remove("show")});
-var generator=null,modelLoading=false;
-async function loadModel(){
-  if(generator||modelLoading)return;
-  modelLoading=true;
-  var loadBubble=addMsg("",false);
-  await typeWrite(loadBubble,"首次使用正在下载AI模型（约800MB），需要几分钟，请耐心等待...");
-  try{
-    var mod=null;
-    var cdns=[
-      "https://unpkg.com/@huggingface/transformers@3.0.0/dist/transformers.min.js",
-      "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0/dist/transformers.min.js",
-      "https://esm.sh/@huggingface/transformers@3.0.0"
-    ];
-    for(var i=0;i<cdns.length;i++){
-      try{mod=await import(cdns[i]);break}catch(e){}
-    }
-    if(!mod)throw new Error("CDN all failed");
-    mod.env.remoteHost="https://hf-mirror.com";
-    mod.env.allowLocalModels=false;
-    generator=await mod.pipeline("text-generation","Xenova/Qwen1.5-0.5B-Chat",{
-      dtype:"q4",
-      device:"wasm",
-      progress_callback:function(p){
-        if(p.status==="progress"&&p.file){
-          var pct=Math.round((p.progress||0));
-          loadBubble.textContent="正在下载模型 "+p.file.split("/").pop()+" "+pct+"%";
-        }
-      }
-    });
-    loadBubble.textContent="AI模型加载完成！现在可以聊天了～";
-    aiMode="on";setStat("on");
-  }catch(e){
-    loadBubble.textContent="模型加载失败："+(e&&e.message||e)+"。\n请用 Chrome 或 Edge 浏览器重试。";
-    aiMode="off";setStat("off");
-  }
-  modelLoading=false;
+function pollinate(text){
+  var url="https://text.pollinations.ai/"+encodeURIComponent(text)+"?model=openai";
+  return new Promise(function(res){
+    var ctrl=("AbortController" in window)?new AbortController():null;
+    var timer=setTimeout(function(){try{ctrl&&ctrl.abort()}catch(e){}res(null)},25000);
+    fetch(url,{signal:ctrl?ctrl.signal:undefined})
+      .then(function(r){if(!r.ok)throw new Error(r.status);return r.text()})
+      .then(function(t){
+        clearTimeout(timer);
+        t=(t||"").trim();
+        if(!t){res(null);return}
+        try{
+          var j=JSON.parse(t);
+          if(j.content){res(j.content.trim());return}
+          if(j.error){res(null);return}
+        }catch(e){}
+        if(/budget|API key|Payment Required|402|reached its limit/i.test(t)){res(null);return}
+        res(t);
+      })
+      .catch(function(){clearTimeout(timer);res(null)});
+  });
 }
 async function askWorker(text){
-  if(!generator){await loadModel()}
-  if(!generator)return null;
-  try{
-    var output=await generator([
-      {role:"system",content:SYS_PROMPT},
-      {role:"user",content:text}
-    ],{max_new_tokens:120,temperature:0.7,do_sample:true});
-    var reply=(output&&output[0]&&output[0].generated_text||"").trim();
-    return reply||null;
-  }catch(e){return null}
+  var got=await pollinate(text);
+  if(got)return got;
+  await new Promise(function(r){setTimeout(r,1500)});
+  got=await pollinate(text);
+  return got;
 }
 var aiMode="off";
 /* ===== 发送 ===== */
